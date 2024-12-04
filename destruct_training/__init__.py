@@ -61,6 +61,9 @@ from torch.utils.tensorboard import SummaryWriter
 from tqdm import tqdm
 import argparse
 import yaml
+from deepeval import evaluate
+from deepeval.metrics import AnswerRelevancyMetric
+from deepeval.test_case import LLMTestCase
 
 # Set up argument parsing for configuration
 parser = argparse.ArgumentParser(description='Train a Language Model with PPO and Autocurricular Learning')
@@ -173,6 +176,27 @@ for i, subset_info in enumerate(data_subset_infos):
 
 # Initialize sampling weights uniformly
 sampling_weights = np.ones(len(data_subsets)) / len(data_subsets)
+
+# Preparing the evaluation metric
+
+# Define the evaluation function
+def evaluate_model_output(prompt, generated_output, expected_output=None, context=None):
+    test_case = LLMTestCase(
+        input=prompt,
+        actual_output=generated_output,
+        expected_output=expected_output,
+        context=context
+    )
+    # Instantiate the desired evaluation metric
+    answer_relevancy_metric = AnswerRelevancyMetric(threshold=0.5)
+    # Measure the test case
+    answer_relevancy_metric.measure(test_case)
+    # Log or print the evaluation results
+    score = answer_relevancy_metric.score
+    reason = answer_relevancy_metric.reason
+    print(f"Evaluation Score: {score}, Reason: {reason}")
+    return score, reason
+
 
 # Define the custom reward function
 def compute_rewards(input_ids, model_outputs):
@@ -401,7 +425,7 @@ for epoch in range(num_epochs):
         # Log the model update
         writer.add_scalar('FrozenModelUpdate', epoch + 1, epoch)
 
-    # Step 6: Validation loop
+    # Step 6: Validation loop with evaluation
     if val_dataset is not None:
         model.eval()
         val_losses = []
@@ -410,9 +434,34 @@ for epoch in range(num_epochs):
             for val_batch in tqdm(val_loader, desc="Validation Batches"):
                 input_ids = val_batch['input_ids'].to(device)
                 attention_mask = val_batch['attention_mask'].to(device)
+                
+                # Generate outputs
+                outputs = model.generate(
+                    input_ids=input_ids,
+                    attention_mask=attention_mask,
+                    max_length=max_seq_length,
+                    num_return_sequences=1,
+                    do_sample=True,
+                    top_k=50,
+                    top_p=0.95
+                )
+                
+                # Decode inputs and outputs
+                prompts = tokenizer.batch_decode(input_ids, skip_special_tokens=True)
+                generated_texts = tokenizer.batch_decode(outputs, skip_special_tokens=True)
+                
+                # Evaluate each generated text
+                for prompt, generated_text in zip(prompts, generated_texts):
+                    score, reason = evaluate_model_output(prompt, generated_text)
+                    # Log the score to TensorBoard
+                    writer.add_scalar('Evaluation/AnswerRelevancy', score, global_step)
+                    global_step += 1  # Increment global step if needed
+                
+                # Optional: Compute loss if you're also evaluating against ground truth
                 outputs = model(input_ids, attention_mask=attention_mask, labels=input_ids)
                 loss = outputs.loss
                 val_losses.append(loss.item())
+        
         val_loss = np.mean(val_losses)
         writer.add_scalar('Validation/Loss', val_loss, epoch)
         print(f"Validation Loss: {val_loss:.4f}")
