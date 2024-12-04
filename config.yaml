@@ -1,0 +1,64 @@
+# config.yaml
+seed: 42
+model_name: 'meta-llama/Llama-3.2-1B'
+learning_rate: 1e-5
+num_epochs: 10
+batch_size: 8
+ppo_epochs: 4
+gamma: 0.99
+lambda: 0.95
+epsilon: 0.1
+kl_target: 0.01
+eta: 0.1
+freeze_interval: 2
+grad_accumulation_steps: 1
+max_seq_length: 512
+use_amp: true
+log_dir: './logs'
+checkpoint_dir: './model_checkpoints'
+
+data_subsets:
+  - dataset_name: 'wikitext'
+    subset_name: 'wikitext-103-raw-v1'
+    split: 'train'
+  - dataset_name: 'bookcorpusopen'
+    split: 'train'
+  - dataset_name: 'cnn_dailymail'
+    subset_name: '3.0.0'
+    split: 'train'
+  - dataset_name: 'squad'
+    split: 'train'
+  - dataset_name: 'multi_news'
+    split: 'train'
+  - dataset_name: 'multi30k'
+    split: 'train'
+  - dataset_name: 'amazon_reviews_multi'
+    subset_name: 'en'
+    split: 'train'
+  - dataset_name: 'yelp_review_full'
+    split: 'train'
+  - dataset_name: 'daily_dialog'
+    split: 'train'
+  - dataset_name: 'europarl_bilingual'
+    subset_name: 'en-es'
+    split: 'train'
+
+text_column_mapping:
+  '0': 'text'          # Wikitext-103
+  '1': 'text'          # BookCorpusOpen
+  '2': 'article'       # CNN/DailyMail
+  '3': 'context'       # SQuAD
+  '4': 'document'      # Multi-News
+  '5': 'description'   # Multi30k
+  '6': 'review_body'   # Amazon Reviews Multi (English)
+  '7': 'text'          # Yelp Review Full
+  '8': 'dialog'        # DailyDialog
+  '9': 'translation'   # EuroParl (English-Spanish)
+
+validation_dataset:
+  dataset_name: 'wikitext'
+  subset_name: 'wikitext-103-raw-v1'
+  split: 'validation'
+  text_column: 'text'
+
+difficulty_sample_size: 100
